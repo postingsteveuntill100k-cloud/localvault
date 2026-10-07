@@ -245,5 +245,19 @@ export function createApp(db?: LocalVaultDatabase): Express {
     }
   });
 
+  // Local Database Metrics & Telemetry Status
+  app.get('/api/database/stats', (_req: Request, res: Response) => {
+    try {
+      const stats = database.getDatabaseStats();
+      return res.json({
+        ...stats,
+        version: '1.0.0',
+        telemetryAirgapped: true
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   return app;
 }

@@ -2,12 +2,15 @@ import { createRequire } from 'node:module';
 import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require('node:sqlite');
+import fs from 'node:fs';
 import { FileRecord, LicenseInfo, LicenseTier, OperationRecord, OrganizationPlan, ProposedAction } from './types.js';
 
 export class LocalVaultDatabase {
   private db: DatabaseSyncType;
+  private dbPath: string;
 
   constructor(dbPath: string = ':memory:') {
+    this.dbPath = dbPath;
     this.db = new DatabaseSync(dbPath);
     this.initialize();
   }
@@ -329,17 +332,52 @@ export class LocalVaultDatabase {
     activeFiles: number;
     historyCount: number;
     plansCount: number;
+    dbPath: string;
+    sizeBytes: number;
+    pageSize: number;
+    pageCount: number;
+    journalMode: string;
   } {
     const totalFilesRow = this.db.prepare('SELECT COUNT(*) as count FROM files').get() as { count: number };
     const activeFilesRow = this.db.prepare("SELECT COUNT(*) as count FROM files WHERE status = 'ACTIVE'").get() as { count: number };
     const historyRow = this.db.prepare('SELECT COUNT(*) as count FROM operation_history').get() as { count: number };
     const plansRow = this.db.prepare('SELECT COUNT(*) as count FROM organization_plans').get() as { count: number };
 
+    let pageSize = 4096;
+    let pageCount = 0;
+    let journalMode = 'wal';
+    try {
+      const psRow = this.db.prepare('PRAGMA page_size;').get() as Record<string, any> | undefined;
+      if (psRow) pageSize = Number(Object.values(psRow)[0] || 4096);
+      const pcRow = this.db.prepare('PRAGMA page_count;').get() as Record<string, any> | undefined;
+      if (pcRow) pageCount = Number(Object.values(pcRow)[0] || 0);
+      const jmRow = this.db.prepare('PRAGMA journal_mode;').get() as Record<string, any> | undefined;
+      if (jmRow) journalMode = String(Object.values(jmRow)[0] || 'wal').toLowerCase();
+    } catch {
+      // ignore pragma failure
+    }
+
+    let sizeBytes = pageSize * pageCount;
+    if (this.dbPath !== ':memory:') {
+      try {
+        if (fs.existsSync(this.dbPath)) {
+          sizeBytes = fs.statSync(this.dbPath).size;
+        }
+      } catch {
+        // use computed sizeBytes
+      }
+    }
+
     return {
       totalFiles: Number(totalFilesRow?.count || 0),
       activeFiles: Number(activeFilesRow?.count || 0),
       historyCount: Number(historyRow?.count || 0),
-      plansCount: Number(plansRow?.count || 0)
+      plansCount: Number(plansRow?.count || 0),
+      dbPath: this.dbPath,
+      sizeBytes,
+      pageSize,
+      pageCount,
+      journalMode
     };
   }
 

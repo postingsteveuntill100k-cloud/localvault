@@ -219,4 +219,16 @@ describe('LocalVault REST API Integration', () => {
     expect(planRes.body.plan.actions.length).toBe(3);
     expect(planRes.body.plan.actions[0].destinationPath).toContain('Stale_Archive');
   });
+
+  it('GET /api/database/stats returns SQLite metrics and airgap indicator', async () => {
+    await request(app).post('/api/index').send({ directoryPath: testDir });
+
+    const res = await request(app).get('/api/database/stats');
+    expect(res.status).toBe(200);
+    expect(res.body.totalFiles).toBe(3);
+    expect(res.body.activeFiles).toBe(3);
+    expect(res.body.telemetryAirgapped).toBe(true);
+    expect(res.body.pageSize).toBeGreaterThan(0);
+    expect(res.body.journalMode).toBeDefined();
+  });
 });

@@ -528,9 +528,9 @@ export function renderLandingPageHtml(): string {
           <div class="demo-dot green"></div>
         </div>
         <div class="demo-tabs">
-          <button class="demo-tab-btn active" onclick="switchDemoTab('calc')">Storage Savings Calculator</button>
-          <button class="demo-tab-btn" onclick="switchDemoTab('organizer')">Live Reorganizer Preview</button>
-          <button class="demo-tab-btn" onclick="switchDemoTab('hasher')">SHA-256 Stream Hasher</button>
+          <button class="demo-tab-btn active" onclick="switchDemoTab('calc', this)">Storage Savings Calculator</button>
+          <button class="demo-tab-btn" onclick="switchDemoTab('organizer', this)">Live Reorganizer Preview</button>
+          <button class="demo-tab-btn" onclick="switchDemoTab('hasher', this)">SHA-256 Stream Hasher</button>
         </div>
         <span style="font-size: 11px; color: var(--text-muted); font-family: monospace;">sandbox-live-v1.0</span>
       </div>
@@ -756,7 +756,7 @@ export function renderLandingPageHtml(): string {
             Zero telemetry guarantee
           </li>
         </ul>
-        <a href="/app" class="btn btn-secondary" style="width: 100%;">Get Started Free</a>
+        <a href="/app?tab=tab-settings&tier=COMMUNITY" class="btn btn-secondary" style="width: 100%;">Get Started Free</a>
       </div>
 
       <!-- Pro -->
@@ -792,7 +792,7 @@ export function renderLandingPageHtml(): string {
             Permanent airgapped license key
           </li>
         </ul>
-        <a href="/app" class="btn btn-primary" style="width: 100%;">Upgrade to Pro</a>
+        <a href="/app?tab=tab-settings&tier=PRO" class="btn btn-primary" style="width: 100%;">Upgrade to Pro</a>
       </div>
 
       <!-- Team -->
@@ -819,7 +819,7 @@ export function renderLandingPageHtml(): string {
             Airgap compliance SLA & audit reports
           </li>
         </ul>
-        <a href="/app" class="btn btn-secondary" style="width: 100%;">Get Team Vault</a>
+        <a href="/app?tab=tab-settings&tier=TEAM" class="btn btn-secondary" style="width: 100%;">Get Team Vault</a>
       </div>
     </div>
   </section>
@@ -854,11 +854,16 @@ export function renderLandingPageHtml(): string {
 
   <script>
     // Tab switching for interactive demo
-    function switchDemoTab(tabName) {
+    function switchDemoTab(tabName, btn) {
       document.querySelectorAll('.demo-tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.demo-pane').forEach(p => p.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('demo-' + tabName).classList.add('active');
+      if (btn) {
+        btn.classList.add('active');
+      } else if (window.event && window.event.currentTarget) {
+        window.event.currentTarget.classList.add('active');
+      }
+      const targetPane = document.getElementById('demo-' + tabName);
+      if (targetPane) targetPane.classList.add('active');
     }
 
     // Storage Savings Calculator
