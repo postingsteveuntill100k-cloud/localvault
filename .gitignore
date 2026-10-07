@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+*.tmp
+localvault.db
+localvault.db-wal
+localvault.db-shm
+.agent/state/runtime.json
+coverage/

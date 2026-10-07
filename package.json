@@ -1,0 +1,36 @@
+{
+  "name": "localvault",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Privacy-First Personal File Organizer with Safe, Reversible Operations",
+  "type": "module",
+  "main": "dist/core/index.js",
+  "bin": {
+    "localvault": "./bin/localvault.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server/index.ts",
+    "start": "node dist/server/index.js",
+    "cli": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:edge": "vitest run tests/edge_cases",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

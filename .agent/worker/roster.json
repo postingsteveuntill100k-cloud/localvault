@@ -1,0 +1,39 @@
+{
+  "project_id": "localvault",
+  "registered_at": "2026-10-07T13:28:00Z",
+  "workers": [
+    {
+      "id": "localvault-dev-01",
+      "role": "PRIMARY_DEVELOPMENT",
+      "domain": "Core Engine, Indexer, SQLite, Organizer, API, CLI",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "localvault-ui-01",
+      "role": "UI_FRONTEND",
+      "domain": "Web Dashboard, Interactive Preview, Responsive UI",
+      "status": "AVAILABLE"
+    },
+    {
+      "id": "localvault-test-01",
+      "role": "QA_TESTING",
+      "domain": "Integration Tests, Edge Cases, Large Files, Failures",
+      "status": "AVAILABLE"
+    },
+    {
+      "id": "localvault-security-01",
+      "role": "SECURITY_AUDITOR",
+      "domain": "Filesystem Sandboxing, Traversal Attacks, TOCTOU",
+      "status": "AVAILABLE"
+    },
+    {
+      "id": "localvault-critic-01",
+      "role": "ARCHITECTURE_CRITIC",
+      "domain": "Architectural Compliance, Anti-Regression, Code Review",
+      "status": "AVAILABLE"
+    }
+  ],
+  "spot_dev_pool": [
+    "spot-01", "spot-02", "spot-03", "spot-04", "spot-05"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "version": "1.0.0",
+  "project_id": "localvault",
+  "created_at": "2026-10-07T13:27:00Z",
+  "tasks": [
+    {
+      "id": "LV-TASK-01-SKELETON",
+      "title": "Create project skeleton & configuration",
+      "owner": "localvault-dev-01",
+      "dependencies": [],
+      "status": "COMPLETED",
+      "artifacts": ["package.json", "tsconfig.json", "vitest.config.ts", "AGENTS.md"]
+    },
+    {
+      "id": "LV-TASK-02-SECURITY",
+      "title": "Implement PathSecurity validation & sandboxing",
+      "owner": "localvault-security-01",
+      "dependencies": ["LV-TASK-01-SKELETON"],
+      "status": "READY",
+      "artifacts": ["src/core/security.ts", "tests/unit/security.test.ts"]
+    },
+    {
+      "id": "LV-TASK-03-DATABASE",
+      "title": "Implement SQLite database schema & DAL",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-01-SKELETON"],
+      "status": "READY",
+      "artifacts": ["src/core/database.ts", "tests/unit/database.test.ts"]
+    },
+    {
+      "id": "LV-TASK-04-INDEXER",
+      "title": "Implement streaming filesystem indexer & SHA-256 hashing",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-02-SECURITY", "LV-TASK-03-DATABASE"],
+      "status": "READY",
+      "artifacts": ["src/core/indexer.ts", "tests/unit/indexer.test.ts"]
+    },
+    {
+      "id": "LV-TASK-05-DUPLICATES",
+      "title": "Implement duplicate detection & storage analyzer",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-03-DATABASE", "LV-TASK-04-INDEXER"],
+      "status": "READY",
+      "artifacts": ["src/core/duplicates.ts", "tests/unit/duplicates.test.ts"]
+    },
+    {
+      "id": "LV-TASK-06-SEARCH",
+      "title": "Implement multi-facet file search engine",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-03-DATABASE", "LV-TASK-04-INDEXER"],
+      "status": "READY",
+      "artifacts": ["src/core/search.ts", "tests/unit/search.test.ts"]
+    },
+    {
+      "id": "LV-TASK-07-ORGANIZER",
+      "title": "Implement safe organization engine, preview, & rollback",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-02-SECURITY", "LV-TASK-03-DATABASE"],
+      "status": "READY",
+      "artifacts": ["src/core/organizer.ts", "src/core/history.ts", "tests/unit/organizer.test.ts"]
+    },
+    {
+      "id": "LV-TASK-08-REPORTS-EXPORT",
+      "title": "Implement analytics reporting and CSV/JSON export",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-03-DATABASE", "LV-TASK-05-DUPLICATES"],
+      "status": "READY",
+      "artifacts": ["src/core/reporting.ts", "src/core/export.ts", "tests/unit/reporting.test.ts", "tests/unit/export.test.ts"]
+    },
+    {
+      "id": "LV-TASK-09-API-SERVER",
+      "title": "Implement Express REST API & CLI runner",
+      "owner": "localvault-dev-01",
+      "dependencies": ["LV-TASK-04-INDEXER", "LV-TASK-05-DUPLICATES", "LV-TASK-06-SEARCH", "LV-TASK-07-ORGANIZER", "LV-TASK-08-REPORTS-EXPORT"],
+      "status": "READY",
+      "artifacts": ["src/server/app.ts", "src/server/index.ts", "src/cli/index.ts", "tests/integration/api.test.ts"]
+    },
+    {
+      "id": "LV-TASK-10-WEB-UI",
+      "title": "Implement web dashboard with interactive preview & search",
+      "owner": "localvault-ui-01",
+      "dependencies": ["LV-TASK-09-API-SERVER"],
+      "status": "READY",
+      "artifacts": ["src/server/ui.ts"]
+    },
+    {
+      "id": "LV-TASK-11-TESTS-EDGE",
+      "title": "Implement large files, traversal security, & failure injection test suites",
+      "owner": "localvault-test-01",
+      "dependencies": ["LV-TASK-09-API-SERVER"],
+      "status": "READY",
+      "artifacts": ["tests/edge_cases/large_files.test.ts", "tests/edge_cases/failure_injection.test.ts", "tests/edge_cases/traversal_attacks.test.ts"]
+    },
+    {
+      "id": "LV-TASK-12-CRITIC-AUDIT",
+      "title": "Rigorous architecture, security, and quality audit",
+      "owner": "localvault-critic-01",
+      "dependencies": ["LV-TASK-11-TESTS-EDGE"],
+      "status": "READY",
+      "artifacts": [".agent/verification/critic-audit.md"]
+    }
+  ]
+}
