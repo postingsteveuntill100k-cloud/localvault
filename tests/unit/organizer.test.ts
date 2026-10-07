@@ -176,4 +176,198 @@ describe('OrganizationEngine', () => {
       path.join(targetDir, 'Stale_Archive', 'DOCUMENT', 'stale.txt')
     );
   });
+
+  it('safely handles in-flight name collisions across nested directories without overwriting', async () => {
+    const dirA = path.join(sourceDir, 'folder_a');
+    const dirB = path.join(sourceDir, 'folder_b');
+    fs.mkdirSync(dirA, { recursive: true });
+    fs.mkdirSync(dirB, { recursive: true });
+
+    const fileA = path.join(dirA, 'notes.txt');
+    const fileB = path.join(dirB, 'notes.txt');
+    fs.writeFileSync(fileA, 'content from folder A');
+    fs.writeFileSync(fileB, 'content from folder B');
+
+    db.upsertFile({
+      id: 'f-notes-a',
+      path: fileA,
+      filename: 'notes.txt',
+      extension: '.txt',
+      category: 'DOCUMENT',
+      mimeType: 'text/plain',
+      sizeBytes: fs.statSync(fileA).size,
+      mtimeMs: 1000,
+      ctimeMs: 1000,
+      sha256: 'h-notes-a',
+      indexedAt: 1000,
+      status: 'ACTIVE'
+    });
+
+    db.upsertFile({
+      id: 'f-notes-b',
+      path: fileB,
+      filename: 'notes.txt',
+      extension: '.txt',
+      category: 'DOCUMENT',
+      mimeType: 'text/plain',
+      sizeBytes: fs.statSync(fileB).size,
+      mtimeMs: 2000,
+      ctimeMs: 2000,
+      sha256: 'h-notes-b',
+      indexedAt: 2000,
+      status: 'ACTIVE'
+    });
+
+    const plan = organizer.createPlan({
+      sourceDirectory: sourceDir,
+      targetDirectory: targetDir,
+      strategy: 'BY_CATEGORY'
+    });
+
+    expect(plan.actions.length).toBe(2);
+    const dest1 = plan.actions[0].destinationPath;
+    const dest2 = plan.actions[1].destinationPath;
+
+    // Both actions MUST have distinct destination paths to prevent data loss!
+    expect(dest1).not.toBe(dest2);
+    expect(dest2).toBe(path.join(targetDir, 'DOCUMENT', 'notes_1.txt'));
+
+    // Execute plan
+    const execRes = await organizer.executePlan(plan.id, true);
+    expect(execRes.executedCount).toBe(2);
+    expect(execRes.failedCount).toBe(0);
+
+    // Verify both files exist and retain original distinct contents
+    expect(fs.readFileSync(dest1, 'utf-8')).toBe('content from folder A');
+    expect(fs.readFileSync(dest2, 'utf-8')).toBe('content from folder B');
+
+    // Rollback and verify both files restored to original locations
+    const rollRes = await organizer.rollbackBatch(execRes.batchId);
+    expect(rollRes.restoredCount).toBe(2);
+    expect(fs.readFileSync(fileA, 'utf-8')).toBe('content from folder A');
+    expect(fs.readFileSync(fileB, 'utf-8')).toBe('content from folder B');
+  });
+
+  it('consolidates only redundant duplicate copies while preserving original and unique files', async () => {
+    const origPath = path.join(sourceDir, 'original.jpg');
+    const dupPath = path.join(sourceDir, 'duplicate_copy.jpg');
+    const uniquePath = path.join(sourceDir, 'unique.png');
+
+    fs.writeFileSync(origPath, 'image-bits');
+    fs.writeFileSync(dupPath, 'image-bits');
+    fs.writeFileSync(uniquePath, 'unique-bits');
+
+    const dupHash = 'shared-img-hash';
+    db.upsertFile({
+      id: 'f-orig',
+      path: origPath,
+      filename: 'original.jpg',
+      extension: '.jpg',
+      category: 'IMAGE',
+      mimeType: 'image/jpeg',
+      sizeBytes: 10,
+      mtimeMs: 100, // Older: primary
+      ctimeMs: 100,
+      sha256: dupHash,
+      indexedAt: 100,
+      status: 'ACTIVE'
+    });
+
+    db.upsertFile({
+      id: 'f-dup',
+      path: dupPath,
+      filename: 'duplicate_copy.jpg',
+      extension: '.jpg',
+      category: 'IMAGE',
+      mimeType: 'image/jpeg',
+      sizeBytes: 10,
+      mtimeMs: 200, // Newer: redundant copy
+      ctimeMs: 200,
+      sha256: dupHash,
+      indexedAt: 200,
+      status: 'ACTIVE'
+    });
+
+    db.upsertFile({
+      id: 'f-unique',
+      path: uniquePath,
+      filename: 'unique.png',
+      extension: '.png',
+      category: 'IMAGE',
+      mimeType: 'image/png',
+      sizeBytes: 11,
+      mtimeMs: 300,
+      ctimeMs: 300,
+      sha256: 'unique-hash',
+      indexedAt: 300,
+      status: 'ACTIVE'
+    });
+
+    const plan = organizer.createPlan({
+      sourceDirectory: sourceDir,
+      targetDirectory: targetDir,
+      strategy: 'DEDUPLICATE_CONSOLIDATE'
+    });
+
+    // ONLY the duplicate copy should be staged for moving!
+    expect(plan.actions.length).toBe(1);
+    expect(plan.actions[0].fileId).toBe('f-dup');
+    expect(plan.actions[0].destinationPath).toBe(
+      path.join(targetDir, 'Duplicates_Archive', 'IMAGE', 'duplicate_copy.jpg')
+    );
+
+    // Execute
+    const execRes = await organizer.executePlan(plan.id, true);
+    expect(execRes.executedCount).toBe(1);
+
+    // Original and unique remain in sourceDir; only duplicate moved to targetDir
+    expect(fs.existsSync(origPath)).toBe(true);
+    expect(fs.existsSync(uniquePath)).toBe(true);
+    expect(fs.existsSync(dupPath)).toBe(false);
+    expect(fs.existsSync(plan.actions[0].destinationPath)).toBe(true);
+  });
+
+  it('guards against destination file appearance before execution without data loss', async () => {
+    const srcFile = path.join(sourceDir, 'clash.txt');
+    fs.writeFileSync(srcFile, 'my source data');
+
+    db.upsertFile({
+      id: 'f-clash',
+      path: srcFile,
+      filename: 'clash.txt',
+      extension: '.txt',
+      category: 'DOCUMENT',
+      mimeType: 'text/plain',
+      sizeBytes: 14,
+      mtimeMs: 100,
+      ctimeMs: 100,
+      sha256: 'h-clash',
+      indexedAt: 100,
+      status: 'ACTIVE'
+    });
+
+    const plan = organizer.createPlan({
+      sourceDirectory: sourceDir,
+      targetDirectory: targetDir,
+      strategy: 'BY_CATEGORY'
+    });
+
+    // INJECT TOCTOU: external process creates a file at planned destination before execution!
+    const destDir = path.join(targetDir, 'DOCUMENT');
+    fs.mkdirSync(destDir, { recursive: true });
+    const preExistingTarget = path.join(destDir, 'clash.txt');
+    fs.writeFileSync(preExistingTarget, 'pre-existing file that must not be overwritten');
+
+    const execRes = await organizer.executePlan(plan.id, true);
+    expect(execRes.executedCount).toBe(1);
+
+    // Pre-existing file is safe!
+    expect(fs.readFileSync(preExistingTarget, 'utf-8')).toBe(
+      'pre-existing file that must not be overwritten'
+    );
+    // Source file moved to safe non-conflicting path
+    const resolvedPath = path.join(destDir, 'clash_1.txt');
+    expect(fs.existsSync(resolvedPath)).toBe(true);
+    expect(fs.readFileSync(resolvedPath, 'utf-8')).toBe('my source data');
+  });
 });

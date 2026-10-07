@@ -64,4 +64,20 @@ describe('PathSecurity', () => {
     const safe2 = PathSecurity.resolveCollisionSafely(target);
     expect(safe2).toBe(path.join(tempDir, 'sample_2.txt'));
   });
+
+  it('respects in-memory reserved paths set for in-flight plan collision prevention', () => {
+    const target = path.join(tempDir, 'not_yet_on_disk.txt');
+    const reserved = new Set<string>();
+
+    const safe1 = PathSecurity.resolveCollisionSafely(target, reserved);
+    expect(safe1).toBe(target);
+    reserved.add(safe1);
+
+    const safe2 = PathSecurity.resolveCollisionSafely(target, reserved);
+    expect(safe2).toBe(path.join(tempDir, 'not_yet_on_disk_1.txt'));
+    reserved.add(safe2);
+
+    const safe3 = PathSecurity.resolveCollisionSafely(target, reserved);
+    expect(safe3).toBe(path.join(tempDir, 'not_yet_on_disk_2.txt'));
+  });
 });

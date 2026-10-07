@@ -11,8 +11,10 @@ export class ReportEngine {
     this.duplicateDetector = new DuplicateDetector(db);
   }
 
-  generateReport(options: { staleDays?: number; topLargest?: number } = {}): StorageReport {
-    const { staleDays = 90, topLargest = 10 } = options;
+  generateReport(
+    options: { staleDays?: number; topLargest?: number; recentDays?: number; topRecent?: number } = {}
+  ): StorageReport {
+    const { staleDays = 90, topLargest = 10, recentDays = 7, topRecent = 10 } = options;
 
     const files = this.db.getAllFiles('ACTIVE');
     const { groups, totalWastedBytes } = this.duplicateDetector.findDuplicates();
@@ -30,6 +32,7 @@ export class ReportEngine {
     };
 
     const staleThresholdMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
+    const recentThresholdMs = Date.now() - recentDays * 24 * 60 * 60 * 1000;
     const staleFiles: FileRecord[] = [];
 
     for (const f of files) {
@@ -52,6 +55,14 @@ export class ReportEngine {
     // Sort stale files by oldest first
     staleFiles.sort((a, b) => a.mtimeMs - b.mtimeMs);
 
+    // Recently modified files (newest first)
+    const recentCandidates = [...files].filter((f) => f.mtimeMs >= recentThresholdMs);
+    const recentlyModifiedFiles = (
+      recentCandidates.length > 0 ? recentCandidates : [...files]
+    )
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+      .slice(0, topRecent);
+
     return {
       totalFiles: files.length,
       totalStorageBytes,
@@ -60,6 +71,7 @@ export class ReportEngine {
       duplicateWasteBytes: totalWastedBytes,
       largestFiles,
       staleFiles,
+      recentlyModifiedFiles,
       generatedAt: Date.now()
     };
   }

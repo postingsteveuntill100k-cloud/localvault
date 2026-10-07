@@ -81,11 +81,12 @@ export class PathSecurity {
 
   /**
    * Generates a collision-free destination path.
-   * If target path already exists, appends '_1', '_2', etc. before the extension.
+   * If target path already exists on disk OR in reservedPaths set,
+   * appends '_1', '_2', etc. before the extension until an unused candidate is found.
    */
-  static resolveCollisionSafely(targetPath: string): string {
+  static resolveCollisionSafely(targetPath: string, reservedPaths?: Set<string>): string {
     const normalized = this.normalize(targetPath);
-    if (!fs.existsSync(normalized)) {
+    if (!fs.existsSync(normalized) && (!reservedPaths || !reservedPaths.has(normalized))) {
       return normalized;
     }
 
@@ -95,7 +96,7 @@ export class PathSecurity {
 
     let counter = 1;
     let candidate = path.join(dir, `${base}_${counter}${ext}`);
-    while (fs.existsSync(candidate)) {
+    while (fs.existsSync(candidate) || (reservedPaths && reservedPaths.has(candidate))) {
       counter++;
       candidate = path.join(dir, `${base}_${counter}${ext}`);
     }

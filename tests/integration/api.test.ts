@@ -57,11 +57,18 @@ describe('LocalVault REST API Integration', () => {
     expect(listRes.status).toBe(200);
     expect(listRes.body.total).toBe(3);
 
-    // Search query test
+    // Search query test by category
     const searchRes = await request(app).get('/api/files?category=IMAGE');
     expect(searchRes.status).toBe(200);
     expect(searchRes.body.total).toBe(1);
     expect(searchRes.body.files[0].filename).toBe('image.png');
+
+    // Search query test by hash
+    const imgHash = searchRes.body.files[0].sha256;
+    const hashRes = await request(app).get(`/api/files?hash=${imgHash}`);
+    expect(hashRes.status).toBe(200);
+    expect(hashRes.body.total).toBe(1);
+    expect(hashRes.body.files[0].filename).toBe('image.png');
   });
 
   it('GET /api/duplicates detects exact duplicates', async () => {
@@ -131,6 +138,8 @@ describe('LocalVault REST API Integration', () => {
     expect(repRes.body.totalFiles).toBe(3);
     expect(repRes.body.categoryBreakdown.DOCUMENT.count).toBe(2);
     expect(repRes.body.categoryBreakdown.IMAGE.count).toBe(1);
+    expect(repRes.body.recentlyModifiedFiles).toBeDefined();
+    expect(repRes.body.recentlyModifiedFiles.length).toBe(3);
   });
 
   it('GET /api/export supports both JSON and CSV formats', async () => {

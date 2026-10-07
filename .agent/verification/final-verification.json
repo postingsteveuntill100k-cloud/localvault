@@ -9,8 +9,8 @@
     "tsc_build_exit_code": 0,
     "vitest_exit_code": 0,
     "test_suites_count": 13,
-    "tests_count": 46,
-    "tests_passed": 46,
+    "tests_count": 53,
+    "tests_passed": 53,
     "test_files": [
       "tests/unit/security.test.ts",
       "tests/unit/database.test.ts",

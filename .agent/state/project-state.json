@@ -13,8 +13,8 @@
   },
   "metrics": {
     "total_test_suites": 13,
-    "total_tests": 46,
-    "tests_passed": 46,
+    "total_tests": 53,
+    "tests_passed": 53,
     "tests_failed": 0,
     "pass_rate": "100%",
     "build_status": "SUCCESS (tsc exit 0)",

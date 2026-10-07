@@ -87,6 +87,39 @@ describe('Large Files & Exotic Filesystem Edge Cases', () => {
       const res = await indexer.indexDirectory(testDir);
       // Broken symlink should be recorded in errors or skipped without crashing
       expect(res).toBeDefined();
+      expect(res.errors.length + res.skipped).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('detects circular directory symlink loops and avoids infinite recursion', async () => {
+    const subDir = path.join(testDir, 'subfolder');
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(path.join(subDir, 'doc.txt'), 'test-content');
+
+    const circularLink = path.join(subDir, 'infinite_loop');
+    try {
+      // Point circular link back to subDir
+      fs.symlinkSync(subDir, circularLink, 'dir');
+    } catch {}
+
+    const res = await indexer.indexDirectory(testDir);
+    expect(res).toBeDefined();
+    expect(res.indexed).toBe(1); // Exactly doc.txt indexed once
+    // Must not hang or blow call stack
+  });
+
+  it('indexes valid internal symlinks pointing to regular files', async () => {
+    const realFile = path.join(testDir, 'source.txt');
+    fs.writeFileSync(realFile, 'payload data');
+
+    const fileLink = path.join(testDir, 'link_to_source.txt');
+    try {
+      fs.symlinkSync(realFile, fileLink);
+    } catch {}
+
+    const res = await indexer.indexDirectory(testDir);
+    expect(res.indexed).toBe(2); // source.txt and link_to_source.txt
+    const files = db.getAllFiles();
+    expect(files.find((f) => f.filename === 'link_to_source.txt')).toBeDefined();
   });
 });

@@ -39,16 +39,40 @@ export class OrganizationEngine {
     const normalTarget = PathSecurity.normalize(targetDirectory);
     const staleThresholdMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
 
-    const allFiles = this.db.getAllFiles('ACTIVE').filter((f) => {
+    let candidateFiles = this.db.getAllFiles('ACTIVE').filter((f) => {
       if (!f.path.startsWith(normalSource)) return false;
       if (categoryFilter && f.category !== categoryFilter) return false;
       if (strategy === 'STALE_ARCHIVE' && f.mtimeMs >= staleThresholdMs) return false;
       return true;
     });
 
-    const actions: ProposedAction[] = [];
+    if (strategy === 'DEDUPLICATE_CONSOLIDATE') {
+      // Find duplicate hashes
+      const dupHashes = new Set(this.db.getDuplicateHashes().map((h) => h.sha256));
+      const dupFiles = candidateFiles.filter((f) => dupHashes.has(f.sha256));
 
-    for (const file of allFiles) {
+      // Group by hash
+      const grouped = new Map<string, FileRecord[]>();
+      for (const f of dupFiles) {
+        if (!grouped.has(f.sha256)) grouped.set(f.sha256, []);
+        grouped.get(f.sha256)!.push(f);
+      }
+
+      // For each duplicate group, keep earliest original in place; consolidate secondary copies
+      const filesToConsolidate: FileRecord[] = [];
+      for (const group of grouped.values()) {
+        group.sort((a, b) => a.mtimeMs - b.mtimeMs);
+        for (let i = 1; i < group.length; i++) {
+          filesToConsolidate.push(group[i]);
+        }
+      }
+      candidateFiles = filesToConsolidate;
+    }
+
+    const actions: ProposedAction[] = [];
+    const reservedPaths = new Set<string>();
+
+    for (const file of candidateFiles) {
       let destDir = normalTarget;
 
       if (strategy === 'BY_CATEGORY') {
@@ -59,14 +83,15 @@ export class OrganizationEngine {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         destDir = path.join(normalTarget, year, month);
       } else if (strategy === 'DEDUPLICATE_CONSOLIDATE') {
-        destDir = path.join(normalTarget, 'Duplicates_Archive');
+        destDir = path.join(normalTarget, 'Duplicates_Archive', file.category);
       } else if (strategy === 'STALE_ARCHIVE') {
         destDir = path.join(normalTarget, 'Stale_Archive', file.category);
       }
 
       const initialDestination = path.join(destDir, file.filename);
-      // Determine collision safety
-      const resolvedDestination = PathSecurity.resolveCollisionSafely(initialDestination);
+      // Determine collision safety against disk and other plan actions
+      const resolvedDestination = PathSecurity.resolveCollisionSafely(initialDestination, reservedPaths);
+      reservedPaths.add(resolvedDestination);
 
       actions.push({
         id: crypto.randomUUID(),
@@ -157,16 +182,24 @@ export class OrganizationEngine {
           );
         }
 
+        // TOCTOU check 3: Guard against destination collision if a file appeared since planning
+        let actualDestination = action.destinationPath;
+        if (fs.existsSync(actualDestination) && actualDestination !== action.sourcePath) {
+          actualDestination = PathSecurity.resolveCollisionSafely(actualDestination);
+          action.destinationPath = actualDestination;
+          action.collisionResolvedPath = actualDestination;
+        }
+
         // Ensure target directory exists
-        const destDir = path.dirname(action.destinationPath);
+        const destDir = path.dirname(actualDestination);
         await fsp.mkdir(destDir, { recursive: true });
 
         // Atomic move with cross-filesystem copy fallback
         try {
-          await fsp.rename(action.sourcePath, action.destinationPath);
+          await fsp.rename(action.sourcePath, actualDestination);
         } catch (renameErr: any) {
           if (renameErr.code === 'EXDEV') {
-            await fsp.copyFile(action.sourcePath, action.destinationPath);
+            await fsp.copyFile(action.sourcePath, actualDestination);
             await fsp.unlink(action.sourcePath);
           } else {
             throw renameErr;
@@ -174,8 +207,8 @@ export class OrganizationEngine {
         }
 
         // Update database file record
-        const newFilename = path.basename(action.destinationPath);
-        this.db.updateFilePath(action.fileId, action.destinationPath, newFilename);
+        const newFilename = path.basename(actualDestination);
+        this.db.updateFilePath(action.fileId, actualDestination, newFilename);
 
         action.status = 'EXECUTED';
         executedCount++;
@@ -187,7 +220,7 @@ export class OrganizationEngine {
           planId: plan.id,
           operationType: 'MOVE',
           sourcePath: action.sourcePath,
-          destinationPath: action.destinationPath,
+          destinationPath: actualDestination,
           sha256: action.sha256,
           sizeBytes: action.sizeBytes,
           status: 'SUCCESS',
@@ -257,14 +290,19 @@ export class OrganizationEngine {
           throw new Error(`File at '${record.destinationPath}' not found for rollback`);
         }
 
-        const sourceDir = path.dirname(record.sourcePath);
+        let targetRollback = record.sourcePath;
+        if (fs.existsSync(targetRollback) && targetRollback !== record.destinationPath) {
+          targetRollback = PathSecurity.resolveCollisionSafely(targetRollback);
+        }
+
+        const sourceDir = path.dirname(targetRollback);
         await fsp.mkdir(sourceDir, { recursive: true });
 
         try {
-          await fsp.rename(record.destinationPath, record.sourcePath);
+          await fsp.rename(record.destinationPath, targetRollback);
         } catch (renameErr: any) {
           if (renameErr.code === 'EXDEV') {
-            await fsp.copyFile(record.destinationPath, record.sourcePath);
+            await fsp.copyFile(record.destinationPath, targetRollback);
             await fsp.unlink(record.destinationPath);
           } else {
             throw renameErr;
@@ -274,8 +312,8 @@ export class OrganizationEngine {
         // Find file record by destination path and update back to source path
         const file = this.db.getFileByPath(record.destinationPath);
         if (file) {
-          const originalFilename = path.basename(record.sourcePath);
-          this.db.updateFilePath(file.id, record.sourcePath, originalFilename);
+          const originalFilename = path.basename(targetRollback);
+          this.db.updateFilePath(file.id, targetRollback, originalFilename);
         }
 
         restoredCount++;
@@ -286,7 +324,7 @@ export class OrganizationEngine {
           planId: record.planId,
           operationType: 'ROLLBACK',
           sourcePath: record.destinationPath,
-          destinationPath: record.sourcePath,
+          destinationPath: targetRollback,
           sha256: record.sha256,
           sizeBytes: record.sizeBytes,
           status: 'SUCCESS',

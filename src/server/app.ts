@@ -59,6 +59,7 @@ export function createApp(db?: LocalVaultDatabase): Express {
     try {
       const {
         term,
+        hash,
         extension,
         category,
         minSize,
@@ -73,6 +74,7 @@ export function createApp(db?: LocalVaultDatabase): Express {
 
       const query = {
         term: term ? String(term) : undefined,
+        hash: hash ? String(hash) : undefined,
         extension: extension ? String(extension) : undefined,
         category: category ? (String(category) as FileCategory) : undefined,
         minSize: minSize ? Number(minSize) : undefined,
@@ -183,7 +185,8 @@ export function createApp(db?: LocalVaultDatabase): Express {
   // Reports
   app.get('/api/reports/summary', (req: Request, res: Response) => {
     const staleDays = req.query.staleDays ? Number(req.query.staleDays) : 90;
-    const report = reporting.generateReport({ staleDays });
+    const recentDays = req.query.recentDays ? Number(req.query.recentDays) : 7;
+    const report = reporting.generateReport({ staleDays, recentDays });
     return res.json(report);
   });
 

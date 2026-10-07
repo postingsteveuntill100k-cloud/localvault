@@ -22,13 +22,22 @@ export class SearchEngine {
     }
 
     const filtered = allFiles.filter((file) => {
-      // Filename / Term
+      // Filename / Path / Hash Term
       if (query.term) {
         const lowerTerm = query.term.toLowerCase();
         if (
           !file.filename.toLowerCase().includes(lowerTerm) &&
-          !file.path.toLowerCase().includes(lowerTerm)
+          !file.path.toLowerCase().includes(lowerTerm) &&
+          !file.sha256.toLowerCase().includes(lowerTerm)
         ) {
+          return false;
+        }
+      }
+
+      // Hash filter (prefix or exact)
+      if (query.hash) {
+        const lowerHash = query.hash.toLowerCase().trim();
+        if (!file.sha256.toLowerCase().startsWith(lowerHash)) {
           return false;
         }
       }

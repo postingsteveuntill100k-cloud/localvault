@@ -82,6 +82,7 @@ export interface OperationRecord {
 
 export interface SearchQuery {
   term?: string;
+  hash?: string;
   extension?: string;
   category?: FileCategory;
   minSize?: number;
@@ -102,6 +103,7 @@ export interface StorageReport {
   duplicateWasteBytes: number;
   largestFiles: FileRecord[];
   staleFiles: FileRecord[];
+  recentlyModifiedFiles: FileRecord[];
   generatedAt: number;
 }
 

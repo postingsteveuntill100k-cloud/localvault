@@ -121,6 +121,7 @@ async function main() {
       console.log(`Total Storage: ${(rep.totalStorageBytes / (1024 * 1024)).toFixed(2)} MB`);
       console.log(`Duplicate Waste: ${(rep.duplicateWasteBytes / (1024 * 1024)).toFixed(2)} MB`);
       console.log(`Stale Files (>90d): ${rep.staleFiles.length}`);
+      console.log(`Recently Modified (<7d): ${rep.recentlyModifiedFiles.length}`);
       console.log(`\nCategory Breakdown:`);
       for (const [cat, data] of Object.entries(rep.categoryBreakdown)) {
         console.log(`  - ${cat}: ${data.count} files (${(data.bytes / 1024).toFixed(1)} KB)`);

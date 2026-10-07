@@ -141,6 +141,14 @@ export class FileIndexer {
     let indexedCount = 0;
     let skippedCount = 0;
     const errors: { path: string; error: string }[] = [];
+    const visitedDirs = new Set<string>();
+
+    try {
+      const realRoot = await fsp.realpath(normalizedRoot);
+      visitedDirs.add(realRoot);
+    } catch {
+      visitedDirs.add(normalizedRoot);
+    }
 
     const traverse = async (currentDir: string, currentDepth: number): Promise<void> => {
       if (currentDepth > maxDepth) return;
@@ -168,17 +176,41 @@ export class FileIndexer {
           continue;
         }
 
-        // Symlink checks: skip external symlinks
+        let isDir = entry.isDirectory();
+        let isFile = entry.isFile();
+
+        // Symlink checks: resolve target, check escape and broken symlinks
         if (entry.isSymbolicLink()) {
-          if (PathSecurity.isSymlinkEscape(fullPath, normalizedRoot)) {
+          try {
+            await fsp.realpath(fullPath);
+            if (PathSecurity.isSymlinkEscape(fullPath, normalizedRoot)) {
+              skippedCount++;
+              continue;
+            }
+            const targetStat = await fsp.stat(fullPath);
+            isDir = targetStat.isDirectory();
+            isFile = targetStat.isFile();
+          } catch (symErr: any) {
             skippedCount++;
+            errors.push({ path: fullPath, error: `Broken or inaccessible symlink: ${symErr.message}` });
             continue;
           }
         }
 
-        if (entry.isDirectory()) {
-          await traverse(fullPath, currentDepth + 1);
-        } else if (entry.isFile()) {
+        if (isDir) {
+          try {
+            const canonicalDir = await fsp.realpath(fullPath);
+            if (visitedDirs.has(canonicalDir)) {
+              // Circular symlink or previously visited directory loop detected
+              skippedCount++;
+              continue;
+            }
+            visitedDirs.add(canonicalDir);
+            await traverse(fullPath, currentDepth + 1);
+          } catch (dirErr: any) {
+            errors.push({ path: fullPath, error: dirErr.message });
+          }
+        } else if (isFile) {
           try {
             const fileStat = await fsp.stat(fullPath);
             const ext = path.extname(entry.name);

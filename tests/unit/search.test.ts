@@ -107,4 +107,17 @@ describe('SearchEngine', () => {
     const nonDups = searchEngine.search({ isDuplicate: false });
     expect(nonDups.total).toBe(2);
   });
+
+  it('filters by SHA-256 hash and matches hash substring in search term', () => {
+    // Exact/prefix hash query
+    const hashRes = searchEngine.search({ hash: 'h-img1' });
+    expect(hashRes.total).toBe(1);
+    expect(hashRes.results[0].filename).toBe('vacation.jpg');
+
+    // Search term containing hash
+    const termHashRes = searchEngine.search({ term: 'h-doc1' });
+    expect(termHashRes.total).toBe(2);
+    expect(termHashRes.results.map((r) => r.filename)).toContain('resume.pdf');
+    expect(termHashRes.results.map((r) => r.filename)).toContain('resume_copy.pdf');
+  });
 });

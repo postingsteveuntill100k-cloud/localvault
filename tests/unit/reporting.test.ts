@@ -97,5 +97,9 @@ describe('ReportEngine', () => {
     expect(report.categoryBreakdown.ARCHIVE.count).toBe(1);
     expect(report.categoryBreakdown.IMAGE.count).toBe(2);
     expect(report.categoryBreakdown.DOCUMENT.count).toBe(1);
+
+    expect(report.recentlyModifiedFiles).toBeDefined();
+    expect(report.recentlyModifiedFiles.length).toBeGreaterThanOrEqual(1);
+    expect(report.recentlyModifiedFiles[0].filename).not.toBe('old.txt'); // old.txt is 120d old, not recent!
   });
 });
