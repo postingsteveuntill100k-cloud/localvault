@@ -154,4 +154,69 @@ describe('LocalVault REST API Integration', () => {
     expect(csvRes.text).toContain('id,path,filename,extension,category');
     expect(csvRes.text).toContain('doc1.pdf');
   });
+
+  it('GET / renders the modern Landing Page', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Privacy-First');
+    expect(res.text).toContain('Zero-Knowledge');
+    expect(res.text).toContain('Streaming SHA-256');
+    expect(res.text).toContain('Pricing');
+    expect(res.text).toContain('LocalVault');
+  });
+
+  it('GET /app renders the Dashboard UI', async () => {
+    const res = await request(app).get('/app');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('LocalVault 🔒');
+    expect(res.text).toContain('Safe Reversible Organization Engine');
+    expect(res.text).toContain('Vault Overview');
+  });
+
+  it('GET and POST /api/license manages Micro-SaaS license tier', async () => {
+    const getRes = await request(app).get('/api/license');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.tier).toBe('COMMUNITY');
+    expect(getRes.body.features.unlimitedFiles).toBe(false);
+
+    const postRes = await request(app)
+      .post('/api/license')
+      .send({ tier: 'PRO', licenseKey: 'LV-PRO-TEST-123' });
+    expect(postRes.status).toBe(200);
+    expect(postRes.body.tier).toBe('PRO');
+    expect(postRes.body.licenseKey).toBe('LV-PRO-TEST-123');
+    expect(postRes.body.features.unlimitedFiles).toBe(true);
+
+    const verifyRes = await request(app).get('/api/license');
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body.tier).toBe('PRO');
+  });
+
+  it('POST /api/maintenance/vacuum optimizes the SQLite database', async () => {
+    const res = await request(app).post('/api/maintenance/vacuum');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.vacuumed).toBe(true);
+  });
+
+  it('POST /api/organize/plan supports STALE_ARCHIVE strategy', async () => {
+    const past = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(path.join(testDir, 'doc1.pdf'), past, past);
+    fs.utimesSync(path.join(testDir, 'doc2.pdf'), past, past);
+    fs.utimesSync(path.join(testDir, 'image.png'), past, past);
+
+    await request(app).post('/api/index').send({ directoryPath: testDir });
+
+    const planRes = await request(app).post('/api/organize/plan').send({
+      sourceDirectory: testDir,
+      targetDirectory: targetDir,
+      strategy: 'STALE_ARCHIVE',
+      staleDays: 90
+    });
+
+    expect(planRes.status).toBe(200);
+    expect(planRes.body.plan.strategy).toBe('STALE_ARCHIVE');
+    expect(planRes.body.plan.actions.length).toBe(3);
+    expect(planRes.body.plan.actions[0].destinationPath).toContain('Stale_Archive');
+  });
 });

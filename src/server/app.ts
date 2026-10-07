@@ -9,6 +9,7 @@ import { HistoryManager } from '../core/history.js';
 import { ReportEngine } from '../core/reporting.js';
 import { ExportEngine } from '../core/export.js';
 import { renderDashboardHtml } from './ui.js';
+import { renderLandingPageHtml } from './landing.js';
 import { FileCategory, OrganizationStrategy } from '../core/types.js';
 
 export function createApp(db?: LocalVaultDatabase): Express {
@@ -24,8 +25,14 @@ export function createApp(db?: LocalVaultDatabase): Express {
   app.use(cors());
   app.use(express.json());
 
+  // Landing Page
+  app.get('/', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(renderLandingPageHtml());
+  });
+
   // Web UI Dashboard
-  app.get(['/', '/dashboard'], (_req: Request, res: Response) => {
+  app.get(['/dashboard', '/app'], (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html');
     res.send(renderDashboardHtml());
   });
@@ -117,7 +124,7 @@ export function createApp(db?: LocalVaultDatabase): Express {
   // Safe Organization: Create Plan
   app.post('/api/organize/plan', (req: Request, res: Response) => {
     try {
-      const { sourceDirectory, targetDirectory, strategy, categoryFilter } = req.body;
+      const { sourceDirectory, targetDirectory, strategy, categoryFilter, staleDays } = req.body;
       if (!sourceDirectory || !targetDirectory) {
         return res.status(400).json({ error: 'sourceDirectory and targetDirectory are required' });
       }
@@ -126,7 +133,8 @@ export function createApp(db?: LocalVaultDatabase): Express {
         sourceDirectory,
         targetDirectory,
         strategy: (strategy || 'BY_CATEGORY') as OrganizationStrategy,
-        categoryFilter
+        categoryFilter,
+        staleDays: req.body.staleDays !== undefined ? Number(req.body.staleDays) : undefined
       });
 
       return res.json({ plan });
@@ -207,6 +215,34 @@ export function createApp(db?: LocalVaultDatabase): Express {
       totalFiles: files.length,
       files
     });
+  });
+
+  // Micro-SaaS License Management
+  app.get('/api/license', (_req: Request, res: Response) => {
+    res.json(database.getLicense());
+  });
+
+  app.post('/api/license', (req: Request, res: Response) => {
+    try {
+      const { tier, licenseKey } = req.body;
+      if (!tier) {
+        return res.status(400).json({ error: 'tier is required (COMMUNITY, PRO, TEAM)' });
+      }
+      const updated = database.setLicense(tier.toUpperCase(), licenseKey);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Database Maintenance: Vacuum & Optimize
+  app.post('/api/maintenance/vacuum', (_req: Request, res: Response) => {
+    try {
+      database.vacuum();
+      return res.json({ status: 'ok', vacuumed: true, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   return app;

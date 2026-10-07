@@ -108,3 +108,27 @@ export interface StorageReport {
 }
 
 export type ExportFormat = 'JSON' | 'CSV';
+
+export type LicenseTier = 'COMMUNITY' | 'PRO' | 'TEAM';
+
+export interface LicenseInfo {
+  tier: LicenseTier;
+  licenseKey?: string;
+  status: 'ACTIVE';
+  activatedAt: number;
+  features: {
+    unlimitedFiles: boolean;
+    sha256Deduplication: boolean;
+    automatedRollback: boolean;
+    batchOrganization: boolean;
+    exportReports: boolean;
+    priorityIndexing: boolean;
+    staleArchive: boolean;
+    airgappedZeroTelemetry: boolean;
+  };
+  telemetry: {
+    enabled: boolean;
+    cloudSync: boolean;
+    mode: string;
+  };
+}

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require('node:sqlite');
-import { FileRecord, OperationRecord, OrganizationPlan, ProposedAction } from './types.js';
+import { FileRecord, LicenseInfo, LicenseTier, OperationRecord, OrganizationPlan, ProposedAction } from './types.js';
 
 export class LocalVaultDatabase {
   private db: DatabaseSyncType;
@@ -72,6 +72,11 @@ export class LocalVaultDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_history_batch_id ON operation_history(batch_id);
       CREATE INDEX IF NOT EXISTS idx_history_timestamp ON operation_history(timestamp);
+
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
   }
 
@@ -257,6 +262,85 @@ export class LocalVaultDatabase {
       this.db.exec('ROLLBACK;');
       throw err;
     }
+  }
+
+  // --- Settings & License ---
+
+  getSetting(key: string): string | null {
+    const stmt = this.db.prepare('SELECT value FROM app_settings WHERE key = ?');
+    const row = stmt.get(key) as { value: string } | undefined;
+    return row ? row.value : null;
+  }
+
+  setSetting(key: string, value: string): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO app_settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+    `);
+    stmt.run(key, value);
+  }
+
+  getLicense(): LicenseInfo {
+    const rawTier = (this.getSetting('license_tier') || 'COMMUNITY').toUpperCase() as LicenseTier;
+    const tier: LicenseTier = ['COMMUNITY', 'PRO', 'TEAM'].includes(rawTier) ? rawTier : 'COMMUNITY';
+    const key = this.getSetting('license_key') || undefined;
+    const activatedAt = Number(this.getSetting('license_activated_at')) || Date.now();
+
+    const isPro = tier === 'PRO' || tier === 'TEAM';
+
+    return {
+      tier,
+      licenseKey: key,
+      status: 'ACTIVE',
+      activatedAt,
+      features: {
+        unlimitedFiles: isPro,
+        sha256Deduplication: true,
+        automatedRollback: true,
+        batchOrganization: true,
+        exportReports: true,
+        priorityIndexing: isPro,
+        staleArchive: isPro,
+        airgappedZeroTelemetry: true
+      },
+      telemetry: {
+        enabled: false,
+        cloudSync: false,
+        mode: '100% Offline Airgapped'
+      }
+    };
+  }
+
+  setLicense(tier: LicenseTier, key?: string): LicenseInfo {
+    this.setSetting('license_tier', tier);
+    if (key) {
+      this.setSetting('license_key', key);
+    }
+    this.setSetting('license_activated_at', String(Date.now()));
+    return this.getLicense();
+  }
+
+  vacuum(): void {
+    this.db.exec('VACUUM;');
+  }
+
+  getDatabaseStats(): {
+    totalFiles: number;
+    activeFiles: number;
+    historyCount: number;
+    plansCount: number;
+  } {
+    const totalFilesRow = this.db.prepare('SELECT COUNT(*) as count FROM files').get() as { count: number };
+    const activeFilesRow = this.db.prepare("SELECT COUNT(*) as count FROM files WHERE status = 'ACTIVE'").get() as { count: number };
+    const historyRow = this.db.prepare('SELECT COUNT(*) as count FROM operation_history').get() as { count: number };
+    const plansRow = this.db.prepare('SELECT COUNT(*) as count FROM organization_plans').get() as { count: number };
+
+    return {
+      totalFiles: Number(totalFilesRow?.count || 0),
+      activeFiles: Number(activeFilesRow?.count || 0),
+      historyCount: Number(historyRow?.count || 0),
+      plansCount: Number(plansRow?.count || 0)
+    };
   }
 
   close(): void {

@@ -141,4 +141,36 @@ describe('LocalVaultDatabase', () => {
 
     expect(db.getFileById('tx-1')).toBeNull();
   });
+
+  it('manages application settings and license tiers', () => {
+    expect(db.getSetting('custom_key')).toBeNull();
+    db.setSetting('custom_key', 'custom_value');
+    expect(db.getSetting('custom_key')).toBe('custom_value');
+
+    // Default license is COMMUNITY
+    const defaultLic = db.getLicense();
+    expect(defaultLic.tier).toBe('COMMUNITY');
+    expect(defaultLic.features.unlimitedFiles).toBe(false);
+    expect(defaultLic.telemetry.enabled).toBe(false);
+
+    // Upgrade to PRO
+    const proLic = db.setLicense('PRO', 'PRO-KEY-999');
+    expect(proLic.tier).toBe('PRO');
+    expect(proLic.licenseKey).toBe('PRO-KEY-999');
+    expect(proLic.features.unlimitedFiles).toBe(true);
+    expect(proLic.features.staleArchive).toBe(true);
+
+    // Upgrade to TEAM
+    const teamLic = db.setLicense('TEAM', 'TEAM-VAULT-777');
+    expect(teamLic.tier).toBe('TEAM');
+    expect(teamLic.licenseKey).toBe('TEAM-VAULT-777');
+  });
+
+  it('executes vacuum and reports database stats without error', () => {
+    expect(() => db.vacuum()).not.toThrow();
+    const stats = db.getDatabaseStats();
+    expect(stats.totalFiles).toBe(0);
+    expect(stats.historyCount).toBe(0);
+    expect(stats.plansCount).toBe(0);
+  });
 });
