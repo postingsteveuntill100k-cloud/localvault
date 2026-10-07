@@ -122,4 +122,58 @@ describe('OrganizationEngine', () => {
     expect(db.getFileById('f1')?.path).toBe(file1Path);
     expect(db.getFileById('f2')?.path).toBe(file2Path);
   });
+
+  it('correctly filters and stages stale files with STALE_ARCHIVE strategy', async () => {
+    const freshPath = path.join(sourceDir, 'fresh.txt');
+    const stalePath = path.join(sourceDir, 'stale.txt');
+    fs.writeFileSync(freshPath, 'fresh-content');
+    fs.writeFileSync(stalePath, 'stale-content');
+
+    const now = Date.now();
+    const staleTime = now - 150 * 24 * 60 * 60 * 1000; // 150 days ago
+
+    db.upsertFile({
+      id: 'f-fresh',
+      path: freshPath,
+      filename: 'fresh.txt',
+      extension: '.txt',
+      category: 'DOCUMENT',
+      mimeType: 'text/plain',
+      sizeBytes: 13,
+      mtimeMs: now,
+      ctimeMs: now,
+      sha256: 'h-fresh',
+      indexedAt: now,
+      status: 'ACTIVE'
+    });
+
+    db.upsertFile({
+      id: 'f-stale',
+      path: stalePath,
+      filename: 'stale.txt',
+      extension: '.txt',
+      category: 'DOCUMENT',
+      mimeType: 'text/plain',
+      sizeBytes: 13,
+      mtimeMs: staleTime,
+      ctimeMs: staleTime,
+      sha256: 'h-stale',
+      indexedAt: now,
+      status: 'ACTIVE'
+    });
+
+    const plan = organizer.createPlan({
+      sourceDirectory: sourceDir,
+      targetDirectory: targetDir,
+      strategy: 'STALE_ARCHIVE',
+      staleDays: 90
+    });
+
+    // Only the stale file should be included in the plan
+    expect(plan.actions.length).toBe(1);
+    expect(plan.actions[0].fileId).toBe('f-stale');
+    expect(plan.actions[0].destinationPath).toBe(
+      path.join(targetDir, 'Stale_Archive', 'DOCUMENT', 'stale.txt')
+    );
+  });
 });

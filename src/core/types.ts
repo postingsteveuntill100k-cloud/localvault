@@ -35,7 +35,11 @@ export interface DuplicateGroup {
   files: FileRecord[];
 }
 
-export type OrganizationStrategy = 'BY_CATEGORY' | 'BY_DATE' | 'DEDUPLICATE_CONSOLIDATE';
+export type OrganizationStrategy =
+  | 'BY_CATEGORY'
+  | 'BY_DATE'
+  | 'DEDUPLICATE_CONSOLIDATE'
+  | 'STALE_ARCHIVE';
 
 export interface ProposedAction {
   id: string;

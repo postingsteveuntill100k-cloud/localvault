@@ -31,15 +31,18 @@ export class OrganizationEngine {
     targetDirectory: string;
     strategy: OrganizationStrategy;
     categoryFilter?: FileCategory;
+    staleDays?: number;
   }): OrganizationPlan {
-    const { sourceDirectory, targetDirectory, strategy, categoryFilter } = params;
+    const { sourceDirectory, targetDirectory, strategy, categoryFilter, staleDays = 90 } = params;
 
     const normalSource = PathSecurity.normalize(sourceDirectory);
     const normalTarget = PathSecurity.normalize(targetDirectory);
+    const staleThresholdMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
 
     const allFiles = this.db.getAllFiles('ACTIVE').filter((f) => {
       if (!f.path.startsWith(normalSource)) return false;
       if (categoryFilter && f.category !== categoryFilter) return false;
+      if (strategy === 'STALE_ARCHIVE' && f.mtimeMs >= staleThresholdMs) return false;
       return true;
     });
 
@@ -57,6 +60,8 @@ export class OrganizationEngine {
         destDir = path.join(normalTarget, year, month);
       } else if (strategy === 'DEDUPLICATE_CONSOLIDATE') {
         destDir = path.join(normalTarget, 'Duplicates_Archive');
+      } else if (strategy === 'STALE_ARCHIVE') {
+        destDir = path.join(normalTarget, 'Stale_Archive', file.category);
       }
 
       const initialDestination = path.join(destDir, file.filename);
